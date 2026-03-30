@@ -1,0 +1,190 @@
+package optimizer
+
+import (
+	"errors"
+	"math/rand"
+	"time"
+
+	"game-cycle-simulator/internal/domain"
+	"game-cycle-simulator/internal/simulator"
+)
+
+type Optimizer struct {
+	sim *simulator.Simulator
+	rng *rand.Rand
+}
+
+func NewOptimizer() *Optimizer {
+	return &Optimizer{
+		sim: simulator.NewSimulator(),
+		rng: rand.New(rand.NewSource(time.Now().UnixNano())),
+	}
+}
+
+const defaultRandomSearchIterations = 100
+
+func (o *Optimizer) Optimize(
+	req domain.OptimizationRequest,
+) (domain.OptimizationResult, error) {
+	if err := validateOptimizationRequest(req); err != nil {
+		return domain.OptimizationResult{}, err
+	}
+
+	// Baseline = первые значения из массивов кандидатов.
+	baselineReq := domain.SimulationRequest{
+		ArrivalRateLambda: req.ArrivalRateLambda,
+		Mu:                req.Mu,
+		ChannelsK:         req.ChannelCandidates[0],
+		AlgorithmFactorA:  req.AlgorithmCandidates[0],
+		BetLimit:          req.BetLimitCandidates[0],
+		FraudFactorF:      req.FraudCandidates[0],
+		Simulations:       req.Simulations,
+	}
+
+	baselineResult, err := o.sim.Run(baselineReq)
+	if err != nil {
+		return domain.OptimizationResult{}, err
+	}
+
+	bestMetrics := baselineResult.Metrics
+	bestParams := domain.BestParams{
+		ChannelsK:        baselineReq.ChannelsK,
+		AlgorithmFactorA: baselineReq.AlgorithmFactorA,
+		BetLimit:         baselineReq.BetLimit,
+		FraudFactorF:     baselineReq.FraudFactorF,
+	}
+
+	foundFeasible := false
+
+	for i := 0; i < defaultRandomSearchIterations; i++ {
+		k := randomIntCandidate(o.rng, req.ChannelCandidates)
+		a := randomFloatCandidate(o.rng, req.AlgorithmCandidates)
+		l := randomFloatCandidate(o.rng, req.BetLimitCandidates)
+		f := randomFloatCandidate(o.rng, req.FraudCandidates)
+
+		simReq := domain.SimulationRequest{
+			ArrivalRateLambda: req.ArrivalRateLambda,
+			Mu:                req.Mu,
+			ChannelsK:         k,
+			AlgorithmFactorA:  a,
+			BetLimit:          l,
+			FraudFactorF:      f,
+			Simulations:       req.Simulations,
+		}
+
+		simResult, err := o.sim.Run(simReq)
+		if err != nil {
+			return domain.OptimizationResult{}, err
+		}
+
+		metrics := simResult.Metrics
+
+		if !isFeasible(metrics, req.MaxRho, req.MaxProcessingTime) {
+			continue
+		}
+
+		if !foundFeasible || metrics.RevenuePerUnitTime > bestMetrics.RevenuePerUnitTime {
+			foundFeasible = true
+			bestMetrics = metrics
+			bestParams = domain.BestParams{
+				ChannelsK:        k,
+				AlgorithmFactorA: a,
+				BetLimit:         l,
+				FraudFactorF:     f,
+			}
+		}
+	}
+
+	if !foundFeasible {
+		return domain.OptimizationResult{}, errors.New("no feasible parameter set found")
+	}
+
+	return domain.OptimizationResult{
+		Request:          req,
+		BestParams:       bestParams,
+		BaselineMetrics:  baselineResult.Metrics,
+		OptimizedMetrics: bestMetrics,
+		DeltaRevenue:     bestMetrics.RevenuePerUnitTime - baselineResult.Metrics.RevenuePerUnitTime,
+		DeltaProcessing:  baselineResult.Metrics.AvgProcessingTime - bestMetrics.AvgProcessingTime,
+	}, nil
+}
+
+func isFeasible(
+	metrics domain.Metrics,
+	maxRho float64,
+	maxProcessingTime float64,
+) bool {
+	if metrics.UtilizationRho >= maxRho {
+		return false
+	}
+
+	if metrics.AvgProcessingTime > maxProcessingTime {
+		return false
+	}
+
+	return true
+}
+
+func validateOptimizationRequest(req domain.OptimizationRequest) error {
+	if req.ArrivalRateLambda <= 0 {
+		return errors.New("arrival_rate_lambda must be > 0")
+	}
+	if req.Mu <= 0 {
+		return errors.New("mu must be > 0")
+	}
+	if req.Simulations <= 0 {
+		return errors.New("simulations must be > 0")
+	}
+	if len(req.ChannelCandidates) == 0 {
+		return errors.New("channel_candidates must not be empty")
+	}
+	if len(req.AlgorithmCandidates) == 0 {
+		return errors.New("algorithm_candidates must not be empty")
+	}
+	if len(req.BetLimitCandidates) == 0 {
+		return errors.New("bet_limit_candidates must not be empty")
+	}
+	if len(req.FraudCandidates) == 0 {
+		return errors.New("fraud_candidates must not be empty")
+	}
+	if req.MaxRho <= 0 {
+		return errors.New("max_rho must be > 0")
+	}
+	if req.MaxProcessingTime <= 0 {
+		return errors.New("max_processing_time must be > 0")
+	}
+
+	for _, k := range req.ChannelCandidates {
+		if k <= 0 {
+			return errors.New("all channel_candidates must be > 0")
+		}
+	}
+
+	for _, a := range req.AlgorithmCandidates {
+		if a <= 0 {
+			return errors.New("all algorithm_candidates must be > 0")
+		}
+	}
+
+	for _, l := range req.BetLimitCandidates {
+		if l <= 0 {
+			return errors.New("all bet_limit_candidates must be > 0")
+		}
+	}
+
+	for _, f := range req.FraudCandidates {
+		if f < 0 || f > 1 {
+			return errors.New("all fraud_candidates must be in [0,1]")
+		}
+	}
+
+	return nil
+}
+
+func randomIntCandidate(rng *rand.Rand, candidates []int) int {
+	return candidates[rng.Intn(len(candidates))]
+}
+
+func randomFloatCandidate(rng *rand.Rand, candidates []float64) float64 {
+	return candidates[rng.Intn(len(candidates))]
+}

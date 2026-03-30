@@ -1,0 +1,55 @@
+export interface SimulationRequest {
+    arrival_rate_lambda: number;
+    mu: number;
+    channels_k: number;
+    algorithm_factor_a: number;
+    bet_limit: number;
+    fraud_factor: number;
+    simulations: number;
+}
+
+export interface Metrics {
+    total_bets: number;
+    successful_bets: number;
+    failed_bets: number;
+    success_probability: number;
+    avg_processing_time: number;
+    avg_system_time: number;
+    service_rate_mu: number;
+    utilization_rho: number;
+    mean_revenue_per_bet: number;
+    revenue_per_unit_time: number;
+}
+
+export interface SimulationResponse {
+    request: SimulationRequest;
+    metrics: Metrics;
+}
+
+export interface OptimizationRequest {
+    arrival_rate_lambda: number;
+    mu: number;
+    simulations: number;
+    channel_candidates: number[];
+    algorithm_candidates: number[];
+    bet_limit_candidates: number[];
+    fraud_candidates: number[];
+    max_rho: number;
+    max_processing_time: number;
+}
+
+export interface BestParams {
+    channels_k: number;
+    algorithm_factor_a: number;
+    bet_limit: number;
+    fraud_factor: number;
+}
+
+export interface OptimizationResponse {
+    request: OptimizationRequest;
+    best_params: BestParams;
+    baseline_metrics: Metrics;
+    optimized_metrics: Metrics;
+    delta_revenue: number;
+    delta_processing: number;
+}
