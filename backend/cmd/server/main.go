@@ -2,7 +2,8 @@ package main
 
 import (
 	"log"
-	stdhttp "net/http"
+	"net/http"
+	"os"
 
 	"game-cycle-simulator/internal/config"
 	apphttp "game-cycle-simulator/internal/transport/http"
@@ -10,12 +11,16 @@ import (
 
 func main() {
 	cfg := config.New()
-
 	router := apphttp.NewRouter()
 
-	log.Printf("server started on :%s", cfg.Port)
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = cfg.Port
+	}
 
-	if err := stdhttp.ListenAndServe(":"+cfg.Port, router); err != nil {
+	log.Printf("server started on :%s", port)
+
+	if err := http.ListenAndServe(":"+port, router); err != nil {
 		log.Fatalf("failed to start server: %v", err)
 	}
 }
