@@ -54,6 +54,13 @@ export default function HomePage() {
                 mu: lastSimulationRequest.mu,
                 simulations: lastSimulationRequest.simulations,
 
+                baseline: {
+                    channels_k: lastSimulationRequest.channels_k,
+                    algorithm_factor_a: lastSimulationRequest.algorithm_factor_a,
+                    bet_limit: lastSimulationRequest.bet_limit,
+                    fraud_factor: lastSimulationRequest.fraud_factor,
+                },
+
                 channel_candidates: [
                     Math.max(1, lastSimulationRequest.channels_k - 1),
                     lastSimulationRequest.channels_k,

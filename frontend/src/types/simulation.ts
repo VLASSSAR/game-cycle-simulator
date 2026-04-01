@@ -26,10 +26,18 @@ export interface SimulationResponse {
     metrics: Metrics;
 }
 
+export interface BaselineParams {
+    channels_k: number;
+    algorithm_factor_a: number;
+    bet_limit: number;
+    fraud_factor: number;
+}
+
 export interface OptimizationRequest {
     arrival_rate_lambda: number;
     mu: number;
     simulations: number;
+    baseline: BaselineParams;
     channel_candidates: number[];
     algorithm_candidates: number[];
     bet_limit_candidates: number[];

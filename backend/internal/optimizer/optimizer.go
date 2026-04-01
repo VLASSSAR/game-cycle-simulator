@@ -30,14 +30,15 @@ func (o *Optimizer) Optimize(
 		return domain.OptimizationResult{}, err
 	}
 
-	// Baseline = первые значения из массивов кандидатов.
+	// Baseline = последняя пользовательская конфигурация,
+	// с которой была запущена симуляция.
 	baselineReq := domain.SimulationRequest{
 		ArrivalRateLambda: req.ArrivalRateLambda,
 		Mu:                req.Mu,
-		ChannelsK:         req.ChannelCandidates[0],
-		AlgorithmFactorA:  req.AlgorithmCandidates[0],
-		BetLimit:          req.BetLimitCandidates[0],
-		FraudFactorF:      req.FraudCandidates[0],
+		ChannelsK:         req.Baseline.ChannelsK,
+		AlgorithmFactorA:  req.Baseline.AlgorithmFactorA,
+		BetLimit:          req.Baseline.BetLimit,
+		FraudFactorF:      req.Baseline.FraudFactorF,
 		Simulations:       req.Simulations,
 	}
 
@@ -135,6 +136,20 @@ func validateOptimizationRequest(req domain.OptimizationRequest) error {
 	if req.Simulations <= 0 {
 		return errors.New("simulations must be > 0")
 	}
+
+	if req.Baseline.ChannelsK <= 0 {
+		return errors.New("baseline.channels_k must be > 0")
+	}
+	if req.Baseline.AlgorithmFactorA <= 0 {
+		return errors.New("baseline.algorithm_factor_a must be > 0")
+	}
+	if req.Baseline.BetLimit <= 0 {
+		return errors.New("baseline.bet_limit must be > 0")
+	}
+	if req.Baseline.FraudFactorF < 0 || req.Baseline.FraudFactorF > 1 {
+		return errors.New("baseline.fraud_factor must be in [0,1]")
+	}
+
 	if len(req.ChannelCandidates) == 0 {
 		return errors.New("channel_candidates must not be empty")
 	}
