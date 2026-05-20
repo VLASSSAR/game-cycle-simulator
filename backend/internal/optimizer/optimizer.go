@@ -26,12 +26,23 @@ const defaultRandomSearchIterations = 100
 func (o *Optimizer) Optimize(
 	req domain.OptimizationRequest,
 ) (domain.OptimizationResult, error) {
-	if err := validateOptimizationRequest(req); err != nil {
+	normalizedReq := normalizeOptimizationRequest(req)
+
+	if err := validateOptimizationRequest(normalizedReq); err != nil {
 		return domain.OptimizationResult{}, err
 	}
 
-	// Baseline = последняя пользовательская конфигурация,
-	// с которой была запущена симуляция.
+	switch normalizedReq.Method {
+	case domain.OptimizationMethodRandom:
+		return o.optimizeRandomSearch(normalizedReq)
+	default:
+		return domain.OptimizationResult{}, errors.New("unsupported optimization method")
+	}
+}
+
+func (o *Optimizer) optimizeRandomSearch(
+	req domain.OptimizationRequest,
+) (domain.OptimizationResult, error) {
 	baselineReq := domain.SimulationRequest{
 		ArrivalRateLambda: req.ArrivalRateLambda,
 		Mu:                req.Mu,
@@ -57,7 +68,7 @@ func (o *Optimizer) Optimize(
 
 	foundFeasible := false
 
-	for i := 0; i < defaultRandomSearchIterations; i++ {
+	for i := 0; i < req.Iterations; i++ {
 		k := randomIntCandidate(o.rng, req.ChannelCandidates)
 		a := randomFloatCandidate(o.rng, req.AlgorithmCandidates)
 		l := randomFloatCandidate(o.rng, req.BetLimitCandidates)
@@ -101,13 +112,29 @@ func (o *Optimizer) Optimize(
 	}
 
 	return domain.OptimizationResult{
-		Request:          req,
+		Request:    req,
+		Method:     req.Method,
+		Iterations: req.Iterations,
+
 		BestParams:       bestParams,
 		BaselineMetrics:  baselineResult.Metrics,
 		OptimizedMetrics: bestMetrics,
-		DeltaRevenue:     bestMetrics.RevenuePerUnitTime - baselineResult.Metrics.RevenuePerUnitTime,
-		DeltaProcessing:  baselineResult.Metrics.AvgProcessingTime - bestMetrics.AvgProcessingTime,
+
+		DeltaRevenue:    bestMetrics.RevenuePerUnitTime - baselineResult.Metrics.RevenuePerUnitTime,
+		DeltaProcessing: baselineResult.Metrics.AvgProcessingTime - bestMetrics.AvgProcessingTime,
 	}, nil
+}
+
+func normalizeOptimizationRequest(req domain.OptimizationRequest) domain.OptimizationRequest {
+	if req.Method == "" {
+		req.Method = domain.DefaultOptimizationMethod()
+	}
+
+	if req.Iterations <= 0 {
+		req.Iterations = defaultRandomSearchIterations
+	}
+
+	return req
 }
 
 func isFeasible(
@@ -127,6 +154,18 @@ func isFeasible(
 }
 
 func validateOptimizationRequest(req domain.OptimizationRequest) error {
+	if !req.Method.IsValid() {
+		return errors.New("invalid optimization method")
+	}
+
+	if req.Method != domain.OptimizationMethodRandom {
+		return errors.New("only random optimization method is currently implemented")
+	}
+
+	if req.Iterations <= 0 {
+		return errors.New("iterations must be > 0")
+	}
+
 	if req.ArrivalRateLambda <= 0 {
 		return errors.New("arrival_rate_lambda must be > 0")
 	}
