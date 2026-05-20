@@ -89,3 +89,23 @@ export interface OptimizationResponse {
     delta_revenue: number;
     delta_processing: number;
 }
+
+export interface OptimizationComparisonItem {
+    method: OptimizationMethod;
+    iterations: number;
+
+    best_params?: BestParams;
+    optimized_metrics?: Metrics;
+
+    delta_revenue: number;
+    delta_processing: number;
+
+    error?: string;
+}
+
+export interface OptimizationComparisonResponse {
+    request: OptimizationRequest;
+    baseline_metrics: Metrics;
+    results: OptimizationComparisonItem[];
+    best_method: OptimizationMethod;
+}

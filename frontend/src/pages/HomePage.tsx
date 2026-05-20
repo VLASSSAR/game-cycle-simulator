@@ -2,18 +2,25 @@ import { useState } from "react";
 import SimulationForm from "../components/SimulationForm";
 import MetricsCard from "../components/MetricsCard";
 import OptimizationPanel from "../components/OptimizationPanel";
-import { runSimulation, runOptimization } from "../api/simulationApi";
+import OptimizationComparisonPanel from "../components/OptimizationComparisonPanel";
+import {
+    runSimulation,
+    runOptimization,
+    runOptimizationComparison,
+} from "../api/simulationApi";
 import type {
     SimulationRequest,
     SimulationResponse,
     OptimizationResponse,
     OptimizationRequest,
     OptimizationMethod,
+    OptimizationComparisonResponse,
 } from "../types/simulation";
 
 export default function HomePage() {
     const [simulationResult, setSimulationResult] = useState<SimulationResponse | null>(null);
     const [optimizationResult, setOptimizationResult] = useState<OptimizationResponse | null>(null);
+    const [comparisonResult, setComparisonResult] = useState<OptimizationComparisonResponse | null>(null);
     const [lastSimulationRequest, setLastSimulationRequest] = useState<SimulationRequest | null>(null);
 
     const [optimizationMethod, setOptimizationMethod] = useState<OptimizationMethod>("random");
@@ -21,6 +28,7 @@ export default function HomePage() {
 
     const [isSimulating, setIsSimulating] = useState(false);
     const [isOptimizing, setIsOptimizing] = useState(false);
+    const [isComparing, setIsComparing] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     async function handleSimulation(data: SimulationRequest) {
@@ -28,6 +36,7 @@ export default function HomePage() {
             setIsSimulating(true);
             setError(null);
             setOptimizationResult(null);
+            setComparisonResult(null);
 
             const response = await runSimulation(data);
             setSimulationResult(response);
@@ -54,58 +63,16 @@ export default function HomePage() {
             return;
         }
 
-
         try {
             setIsOptimizing(true);
             setError(null);
+            setComparisonResult(null);
 
-            const payload: OptimizationRequest = {
-                method: optimizationMethod,
-                iterations: optimizationIterations,
-
-                arrival_rate_lambda: lastSimulationRequest.arrival_rate_lambda,
-                mu: lastSimulationRequest.mu,
-                simulations: lastSimulationRequest.simulations,
-
-                baseline: {
-                    channels_k: lastSimulationRequest.channels_k,
-                    algorithm_factor_a: lastSimulationRequest.algorithm_factor_a,
-                    bet_limit: lastSimulationRequest.bet_limit,
-                    fraud_factor: lastSimulationRequest.fraud_factor,
-                },
-
-                channel_candidates: [
-                    Math.max(1, lastSimulationRequest.channels_k - 1),
-                    lastSimulationRequest.channels_k,
-                    lastSimulationRequest.channels_k + 1,
-                    lastSimulationRequest.channels_k + 2,
-                ],
-
-                algorithm_candidates: [
-                    Math.max(0.5, Number((lastSimulationRequest.algorithm_factor_a - 0.2).toFixed(2))),
-                    lastSimulationRequest.algorithm_factor_a,
-                    Number((lastSimulationRequest.algorithm_factor_a + 0.2).toFixed(2)),
-                    Number((lastSimulationRequest.algorithm_factor_a + 0.5).toFixed(2)),
-                ],
-
-                bet_limit_candidates: [
-                    Math.max(10, Number((lastSimulationRequest.bet_limit * 0.5).toFixed(2))),
-                    Number((lastSimulationRequest.bet_limit * 0.75).toFixed(2)),
-                    lastSimulationRequest.bet_limit,
-                    Number((lastSimulationRequest.bet_limit * 1.25).toFixed(2)),
-                    Number((lastSimulationRequest.bet_limit * 1.5).toFixed(2)),
-                ],
-
-                fraud_candidates: [
-                    Math.max(0, Number((lastSimulationRequest.fraud_factor - 0.1).toFixed(2))),
-                    lastSimulationRequest.fraud_factor,
-                    Math.min(1, Number((lastSimulationRequest.fraud_factor + 0.1).toFixed(2))),
-                    Math.min(1, Number((lastSimulationRequest.fraud_factor + 0.2).toFixed(2))),
-                ],
-
-                max_rho: 0.95,
-                max_processing_time: 0.3,
-            };
+            const payload = buildOptimizationPayload(
+                lastSimulationRequest,
+                optimizationMethod,
+                optimizationIterations
+            );
 
             const response = await runOptimization(payload);
             setOptimizationResult(response);
@@ -117,6 +84,41 @@ export default function HomePage() {
             }
         } finally {
             setIsOptimizing(false);
+        }
+    }
+
+    async function handleOptimizationComparison() {
+        if (!lastSimulationRequest) {
+            setError("Сначала запустите симуляцию, чтобы задать базовые параметры.");
+            return;
+        }
+
+        if (optimizationIterations <= 0) {
+            setError("Число итераций / проверок должно быть больше 0.");
+            return;
+        }
+
+        try {
+            setIsComparing(true);
+            setError(null);
+            setOptimizationResult(null);
+
+            const payload = buildOptimizationPayload(
+                lastSimulationRequest,
+                optimizationMethod,
+                optimizationIterations
+            );
+
+            const response = await runOptimizationComparison(payload);
+            setComparisonResult(response);
+        } catch (err) {
+            if (err instanceof Error) {
+                setError(err.message);
+            } else {
+                setError("Произошла неизвестная ошибка");
+            }
+        } finally {
+            setIsComparing(false);
         }
     }
 
@@ -167,10 +169,18 @@ export default function HomePage() {
 
                     <button
                         onClick={handleOptimization}
-                        disabled={isOptimizing || !lastSimulationRequest}
+                        disabled={isOptimizing || isComparing || !lastSimulationRequest}
                         style={styles.optimizeButton}
                     >
                         {isOptimizing ? "Оптимизация..." : "Оптимизировать параметры"}
+                    </button>
+
+                    <button
+                        onClick={handleOptimizationComparison}
+                        disabled={isOptimizing || isComparing || !lastSimulationRequest}
+                        style={styles.compareButton}
+                    >
+                        {isComparing ? "Сравнение..." : "Сравнить методы оптимизации"}
                     </button>
                 </div>
 
@@ -188,10 +198,70 @@ export default function HomePage() {
                             <OptimizationPanel result={optimizationResult} />
                         </div>
                     )}
+
+                    {comparisonResult && (
+                        <div style={styles.block}>
+                            <OptimizationComparisonPanel result={comparisonResult} />
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
     );
+}
+
+function buildOptimizationPayload(
+    request: SimulationRequest,
+    method: OptimizationMethod,
+    iterations: number
+): OptimizationRequest {
+    return {
+        method,
+        iterations,
+
+        arrival_rate_lambda: request.arrival_rate_lambda,
+        mu: request.mu,
+        simulations: request.simulations,
+
+        baseline: {
+            channels_k: request.channels_k,
+            algorithm_factor_a: request.algorithm_factor_a,
+            bet_limit: request.bet_limit,
+            fraud_factor: request.fraud_factor,
+        },
+
+        channel_candidates: [
+            Math.max(1, request.channels_k - 1),
+            request.channels_k,
+            request.channels_k + 1,
+            request.channels_k + 2,
+        ],
+
+        algorithm_candidates: [
+            Math.max(0.5, Number((request.algorithm_factor_a - 0.2).toFixed(2))),
+            request.algorithm_factor_a,
+            Number((request.algorithm_factor_a + 0.2).toFixed(2)),
+            Number((request.algorithm_factor_a + 0.5).toFixed(2)),
+        ],
+
+        bet_limit_candidates: [
+            Math.max(10, Number((request.bet_limit * 0.5).toFixed(2))),
+            Number((request.bet_limit * 0.75).toFixed(2)),
+            request.bet_limit,
+            Number((request.bet_limit * 1.25).toFixed(2)),
+            Number((request.bet_limit * 1.5).toFixed(2)),
+        ],
+
+        fraud_candidates: [
+            Math.max(0, Number((request.fraud_factor - 0.1).toFixed(2))),
+            request.fraud_factor,
+            Math.min(1, Number((request.fraud_factor + 0.1).toFixed(2))),
+            Math.min(1, Number((request.fraud_factor + 0.2).toFixed(2))),
+        ],
+
+        max_rho: 0.95,
+        max_processing_time: 0.3,
+    };
 }
 
 const styles: Record<string, React.CSSProperties> = {
@@ -268,6 +338,15 @@ const styles: Record<string, React.CSSProperties> = {
         borderRadius: "8px",
         border: "none",
         background: "#4C1D95",
+        color: "#fff",
+        cursor: "pointer",
+        fontWeight: 600,
+    },
+    compareButton: {
+        padding: "12px 16px",
+        borderRadius: "8px",
+        border: "none",
+        background: "#047857",
         color: "#fff",
         cursor: "pointer",
         fontWeight: 600,
