@@ -38,9 +38,12 @@ func NewOptimizer() *Optimizer {
 
 const (
 	defaultRandomSearchIterations = 100
-	minGeneticPopulationSize      = 4
-	maxGeneticPopulationSize      = 20
-	geneticMutationProbability    = 0.2
+
+	minGeneticPopulationSize   = 4
+	maxGeneticPopulationSize   = 20
+	geneticMutationProbability = 0.2
+
+	adaptiveExplorationProbability = 0.25
 )
 
 func (o *Optimizer) Optimize(
@@ -61,6 +64,9 @@ func (o *Optimizer) Optimize(
 
 	case domain.OptimizationMethodGenetic:
 		return o.optimizeGenetic(normalizedReq)
+
+	case domain.OptimizationMethodAdaptive:
+		return o.optimizeAdaptive(normalizedReq)
 
 	default:
 		return domain.OptimizationResult{}, errors.New("optimization method is not implemented yet")
@@ -274,6 +280,69 @@ func (o *Optimizer) optimizeGenetic(
 	), nil
 }
 
+func (o *Optimizer) optimizeAdaptive(
+	req domain.OptimizationRequest,
+) (domain.OptimizationResult, error) {
+	baselineResult, err := o.runBaseline(req)
+	if err != nil {
+		return domain.OptimizationResult{}, err
+	}
+
+	currentCandidate := candidate{
+		ChannelsK:        req.Baseline.ChannelsK,
+		AlgorithmFactorA: req.Baseline.AlgorithmFactorA,
+		BetLimit:         req.Baseline.BetLimit,
+		FraudFactorF:     req.Baseline.FraudFactorF,
+	}
+
+	bestCandidate := currentCandidate
+	bestMetrics := baselineResult.Metrics
+	foundFeasible := isFeasible(baselineResult.Metrics, req.MaxRho, req.MaxProcessingTime)
+
+	evaluatedTotal := 0
+
+	for evaluatedTotal < req.Iterations {
+		nextCandidate := o.proposeAdaptiveCandidate(req, currentCandidate)
+
+		simResult, err := o.runCandidate(req, nextCandidate)
+		if err != nil {
+			return domain.OptimizationResult{}, err
+		}
+
+		evaluatedTotal++
+
+		metrics := simResult.Metrics
+		feasible := isFeasible(metrics, req.MaxRho, req.MaxProcessingTime)
+
+		if feasible && (!foundFeasible || isBetter(metrics, bestMetrics)) {
+			foundFeasible = true
+			bestMetrics = metrics
+			bestCandidate = nextCandidate
+			currentCandidate = nextCandidate
+			continue
+		}
+
+		// Если решение допустимое, но не лучшее, иногда переходим к нему,
+		// чтобы алгоритм мог исследовать пространство параметров шире.
+		if feasible && o.rng.Float64() < adaptiveExplorationProbability {
+			currentCandidate = nextCandidate
+		}
+	}
+
+	if !foundFeasible {
+		return domain.OptimizationResult{}, errors.New("no feasible parameter set found")
+	}
+
+	return buildOptimizationResult(
+		req,
+		req.Method,
+		evaluatedTotal,
+		bestParamsFromCandidate(bestCandidate),
+		baselineResult.Metrics,
+		bestMetrics,
+	), nil
+}
+
 func (o *Optimizer) nextGeneration(
 	req domain.OptimizationRequest,
 	evaluatedPopulation []evaluatedCandidate,
@@ -372,6 +441,39 @@ func (o *Optimizer) mutate(
 	}
 
 	return c
+}
+
+func (o *Optimizer) proposeAdaptiveCandidate(
+	req domain.OptimizationRequest,
+	current candidate,
+) candidate {
+	// Иногда выполняем полностью случайный шаг,
+	// чтобы выйти из локального экстремума.
+	if o.rng.Float64() < adaptiveExplorationProbability {
+		return o.randomCandidate(req)
+	}
+
+	next := current
+
+	// На каждом шаге изменяем один или несколько параметров
+	// на соседние значения из допустимых candidate-массивов.
+	if o.rng.Float64() < 0.5 {
+		next.ChannelsK = o.neighborIntCandidate(req.ChannelCandidates, current.ChannelsK)
+	}
+
+	if o.rng.Float64() < 0.5 {
+		next.AlgorithmFactorA = o.neighborFloatCandidate(req.AlgorithmCandidates, current.AlgorithmFactorA)
+	}
+
+	if o.rng.Float64() < 0.5 {
+		next.BetLimit = o.neighborFloatCandidate(req.BetLimitCandidates, current.BetLimit)
+	}
+
+	if o.rng.Float64() < 0.5 {
+		next.FraudFactorF = o.neighborFloatCandidate(req.FraudCandidates, current.FraudFactorF)
+	}
+
+	return next
 }
 
 func (o *Optimizer) runBaseline(
@@ -589,6 +691,114 @@ func bestParamsFromCandidate(c candidate) domain.BestParams {
 		BetLimit:         c.BetLimit,
 		FraudFactorF:     c.FraudFactorF,
 	}
+}
+
+func (o *Optimizer) neighborIntCandidate(
+	candidates []int,
+	current int,
+) int {
+	if len(candidates) == 0 {
+		return current
+	}
+
+	currentIndex := nearestIntIndex(candidates, current)
+
+	direction := -1
+	if o.rng.Float64() < 0.5 {
+		direction = 1
+	}
+
+	nextIndex := currentIndex + direction
+
+	if nextIndex < 0 {
+		nextIndex = 0
+	}
+
+	if nextIndex >= len(candidates) {
+		nextIndex = len(candidates) - 1
+	}
+
+	return candidates[nextIndex]
+}
+
+func (o *Optimizer) neighborFloatCandidate(
+	candidates []float64,
+	current float64,
+) float64 {
+	if len(candidates) == 0 {
+		return current
+	}
+
+	currentIndex := nearestFloatIndex(candidates, current)
+
+	direction := -1
+	if o.rng.Float64() < 0.5 {
+		direction = 1
+	}
+
+	nextIndex := currentIndex + direction
+
+	if nextIndex < 0 {
+		nextIndex = 0
+	}
+
+	if nextIndex >= len(candidates) {
+		nextIndex = len(candidates) - 1
+	}
+
+	return candidates[nextIndex]
+}
+
+func nearestIntIndex(
+	candidates []int,
+	current int,
+) int {
+	bestIndex := 0
+	bestDistance := absInt(candidates[0] - current)
+
+	for i := 1; i < len(candidates); i++ {
+		distance := absInt(candidates[i] - current)
+		if distance < bestDistance {
+			bestDistance = distance
+			bestIndex = i
+		}
+	}
+
+	return bestIndex
+}
+
+func nearestFloatIndex(
+	candidates []float64,
+	current float64,
+) int {
+	bestIndex := 0
+	bestDistance := absFloat(candidates[0] - current)
+
+	for i := 1; i < len(candidates); i++ {
+		distance := absFloat(candidates[i] - current)
+		if distance < bestDistance {
+			bestDistance = distance
+			bestIndex = i
+		}
+	}
+
+	return bestIndex
+}
+
+func absInt(value int) int {
+	if value < 0 {
+		return -value
+	}
+
+	return value
+}
+
+func absFloat(value float64) float64 {
+	if value < 0 {
+		return -value
+	}
+
+	return value
 }
 
 func randomIntCandidate(rng *rand.Rand, candidates []int) int {
