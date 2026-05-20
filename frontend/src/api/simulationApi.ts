@@ -6,7 +6,7 @@ import type {
     OptimizationComparisonResponse,
 } from "../types/simulation";
 
-const API_BASE_URL = "https://game-cycle-simulator.onrender.com";
+const API_BASE_URL = "http://localhost:8080";
 
 export async function runSimulation(
     payload: SimulationRequest

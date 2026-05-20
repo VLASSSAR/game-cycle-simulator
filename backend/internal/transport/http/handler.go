@@ -11,12 +11,14 @@ import (
 type Handler struct {
 	simulationService   *service.SimulationService
 	optimizationService *service.OptimizationService
+	scenarioService     *service.ScenarioService
 }
 
 func NewHandler() *Handler {
 	return &Handler{
 		simulationService:   service.NewSimulationService(),
 		optimizationService: service.NewOptimizationService(),
+		scenarioService:     service.NewScenarioService(),
 	}
 }
 
@@ -92,4 +94,15 @@ func (h *Handler) CompareOptimizationMethods(w http.ResponseWriter, r *http.Requ
 	}
 
 	writeJSON(w, http.StatusOK, result)
+}
+
+func (h *Handler) ListScenarios(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	scenarios := h.scenarioService.ListScenarios()
+
+	writeJSON(w, http.StatusOK, scenarios)
 }
