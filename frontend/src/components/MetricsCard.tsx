@@ -7,16 +7,23 @@ interface MetricsCardProps {
 export default function MetricsCard({ metrics }: MetricsCardProps) {
     return (
         <div style={styles.card}>
-            <h2 style={{color: "#000"}}>Результаты симуляции</h2>
+            <h2 style={styles.title}>Результаты симуляции</h2>
+
             <ul style={styles.list}>
                 <li>Всего ставок: {metrics.total_bets}</li>
                 <li>Успешных ставок: {metrics.successful_bets}</li>
                 <li>Неуспешных ставок: {metrics.failed_bets}</li>
+
                 <li>Вероятность успеха: {metrics.success_probability.toFixed(4)}</li>
+                <li>Вероятность отказа: {metrics.failure_probability.toFixed(4)}</li>
+
                 <li>Среднее время обработки: {metrics.avg_processing_time.toFixed(4)}</li>
+                <li>Среднее время ожидания в очереди: {metrics.avg_queue_time.toFixed(4)}</li>
                 <li>Среднее время в системе: {metrics.avg_system_time.toFixed(4)}</li>
+
                 <li>μ (интенсивность обслуживания): {metrics.service_rate_mu.toFixed(4)}</li>
                 <li>ρ (коэффициент загрузки): {metrics.utilization_rho.toFixed(4)}</li>
+
                 <li>Средний доход на ставку: {metrics.mean_revenue_per_bet.toFixed(4)}</li>
                 <li>Доход за единицу времени: {metrics.revenue_per_unit_time.toFixed(4)}</li>
             </ul>
@@ -31,6 +38,12 @@ const styles: Record<string, React.CSSProperties> = {
         borderRadius: "12px",
         background: "#fff",
         minWidth: "360px",
+        color: "#000",
+    },
+    title: {
+        color: "#000",
+        margin: 0,
+        marginBottom: "12px",
     },
     list: {
         paddingLeft: "18px",

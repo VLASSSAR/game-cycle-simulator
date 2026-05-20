@@ -13,7 +13,9 @@ export interface Metrics {
     successful_bets: number;
     failed_bets: number;
     success_probability: number;
+    failure_probability: number;
     avg_processing_time: number;
+    avg_queue_time: number;
     avg_system_time: number;
     service_rate_mu: number;
     utilization_rho: number;

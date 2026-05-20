@@ -30,6 +30,7 @@ export default function OptimizationPanel({ result }: OptimizationPanelProps) {
 
             <div style={styles.section}>
                 <h3 style={styles.subtitle}>Сравнение режимов</h3>
+
                 <table style={styles.table}>
                     <thead>
                     <tr>
@@ -38,32 +39,50 @@ export default function OptimizationPanel({ result }: OptimizationPanelProps) {
                         <th style={styles.th}>Optimized</th>
                     </tr>
                     </thead>
+
                     <tbody>
                     <tr>
                         <td style={styles.td}>Среднее время обработки</td>
                         <td style={styles.td}>{baseline_metrics.avg_processing_time.toFixed(4)}</td>
                         <td style={styles.td}>{optimized_metrics.avg_processing_time.toFixed(4)}</td>
                     </tr>
+
+                    <tr>
+                        <td style={styles.td}>Среднее время ожидания в очереди</td>
+                        <td style={styles.td}>{baseline_metrics.avg_queue_time.toFixed(4)}</td>
+                        <td style={styles.td}>{optimized_metrics.avg_queue_time.toFixed(4)}</td>
+                    </tr>
+
                     <tr>
                         <td style={styles.td}>Среднее время в системе</td>
                         <td style={styles.td}>{baseline_metrics.avg_system_time.toFixed(4)}</td>
                         <td style={styles.td}>{optimized_metrics.avg_system_time.toFixed(4)}</td>
                     </tr>
+
                     <tr>
                         <td style={styles.td}>Вероятность успеха</td>
                         <td style={styles.td}>{baseline_metrics.success_probability.toFixed(4)}</td>
                         <td style={styles.td}>{optimized_metrics.success_probability.toFixed(4)}</td>
                     </tr>
+
+                    <tr>
+                        <td style={styles.td}>Вероятность отказа</td>
+                        <td style={styles.td}>{baseline_metrics.failure_probability.toFixed(4)}</td>
+                        <td style={styles.td}>{optimized_metrics.failure_probability.toFixed(4)}</td>
+                    </tr>
+
                     <tr>
                         <td style={styles.td}>ρ (коэффициент загрузки)</td>
                         <td style={styles.td}>{baseline_metrics.utilization_rho.toFixed(4)}</td>
                         <td style={styles.td}>{optimized_metrics.utilization_rho.toFixed(4)}</td>
                     </tr>
+
                     <tr>
                         <td style={styles.td}>Средний доход на ставку</td>
                         <td style={styles.td}>{baseline_metrics.mean_revenue_per_bet.toFixed(4)}</td>
                         <td style={styles.td}>{optimized_metrics.mean_revenue_per_bet.toFixed(4)}</td>
                     </tr>
+
                     <tr>
                         <td style={styles.td}>Доход за единицу времени</td>
                         <td style={styles.td}>{baseline_metrics.revenue_per_unit_time.toFixed(4)}</td>
