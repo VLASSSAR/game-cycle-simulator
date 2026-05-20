@@ -1,4 +1,8 @@
 import type { OptimizationComparisonResponse } from "../types/simulation";
+import {
+    exportOptimizationComparisonCsv,
+    exportOptimizationComparisonJson,
+} from "../utils/exportResults";
 
 interface OptimizationComparisonPanelProps {
     result: OptimizationComparisonResponse;
@@ -14,6 +18,24 @@ export default function OptimizationComparisonPanel({
             <div style={styles.section}>
                 <h3 style={styles.subtitle}>Лучший метод</h3>
                 <p style={styles.text}>{formatMethodName(result.best_method)}</p>
+            </div>
+
+            <div style={styles.actions}>
+                <button
+                    type="button"
+                    style={styles.exportButton}
+                    onClick={() => exportOptimizationComparisonCsv(result)}
+                >
+                    Экспорт CSV
+                </button>
+
+                <button
+                    type="button"
+                    style={styles.exportButtonSecondary}
+                    onClick={() => exportOptimizationComparisonJson(result)}
+                >
+                    Экспорт JSON
+                </button>
             </div>
 
             <div style={styles.section}>
@@ -176,5 +198,28 @@ const styles: Record<string, React.CSSProperties> = {
     td: {
         border: "1px solid #ccc",
         padding: "8px",
+    },
+    actions: {
+        display: "flex",
+        gap: "12px",
+        marginBottom: "20px",
+    },
+    exportButton: {
+        padding: "10px 14px",
+        borderRadius: "8px",
+        border: "none",
+        background: "#047857",
+        color: "#fff",
+        cursor: "pointer",
+        fontWeight: 600,
+    },
+    exportButtonSecondary: {
+        padding: "10px 14px",
+        borderRadius: "8px",
+        border: "none",
+        background: "#374151",
+        color: "#fff",
+        cursor: "pointer",
+        fontWeight: 600,
     },
 };
