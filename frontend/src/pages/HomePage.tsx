@@ -54,11 +54,6 @@ export default function HomePage() {
             return;
         }
 
-        if (optimizationMethod !== "random") {
-            setError("Пока реализован только метод Random Search. Остальные методы будут добавлены далее.");
-            return;
-        }
-
         try {
             setIsOptimizing(true);
             setError(null);
@@ -148,7 +143,7 @@ export default function HomePage() {
                                 style={styles.input}
                             >
                                 <option value="random">Random Search</option>
-                                <option value="grid">Grid Search — будет добавлен далее</option>
+                                <option value="grid">Grid Search</option>
                                 <option value="genetic">Genetic Algorithm — будет добавлен далее</option>
                                 <option value="adaptive">Adaptive Optimizer — будет добавлен далее</option>
                             </select>
