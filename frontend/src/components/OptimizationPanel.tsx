@@ -1,5 +1,6 @@
 import type { OptimizationResponse } from "../types/simulation";
 import ComparisonChart from "./ComparisonChart";
+import FraudComparisonChart from "./FraudComparisonChart";
 
 interface OptimizationPanelProps {
     result: OptimizationResponse;
@@ -125,6 +126,11 @@ export default function OptimizationPanel({ result }: OptimizationPanelProps) {
             </div>
 
             <ComparisonChart
+                baseline={baseline_metrics}
+                optimized={optimized_metrics}
+            />
+
+            <FraudComparisonChart
                 baseline={baseline_metrics}
                 optimized={optimized_metrics}
             />
