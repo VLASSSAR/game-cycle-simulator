@@ -35,35 +35,29 @@ func (o *Optimizer) Optimize(
 	switch normalizedReq.Method {
 	case domain.OptimizationMethodRandom:
 		return o.optimizeRandomSearch(normalizedReq)
+
+	case domain.OptimizationMethodGrid:
+		return o.optimizeGridSearch(normalizedReq)
+
 	default:
-		return domain.OptimizationResult{}, errors.New("unsupported optimization method")
+		return domain.OptimizationResult{}, errors.New("optimization method is not implemented yet")
 	}
 }
 
 func (o *Optimizer) optimizeRandomSearch(
 	req domain.OptimizationRequest,
 ) (domain.OptimizationResult, error) {
-	baselineReq := domain.SimulationRequest{
-		ArrivalRateLambda: req.ArrivalRateLambda,
-		Mu:                req.Mu,
-		ChannelsK:         req.Baseline.ChannelsK,
-		AlgorithmFactorA:  req.Baseline.AlgorithmFactorA,
-		BetLimit:          req.Baseline.BetLimit,
-		FraudFactorF:      req.Baseline.FraudFactorF,
-		Simulations:       req.Simulations,
-	}
-
-	baselineResult, err := o.sim.Run(baselineReq)
+	baselineResult, err := o.runBaseline(req)
 	if err != nil {
 		return domain.OptimizationResult{}, err
 	}
 
 	bestMetrics := baselineResult.Metrics
 	bestParams := domain.BestParams{
-		ChannelsK:        baselineReq.ChannelsK,
-		AlgorithmFactorA: baselineReq.AlgorithmFactorA,
-		BetLimit:         baselineReq.BetLimit,
-		FraudFactorF:     baselineReq.FraudFactorF,
+		ChannelsK:        req.Baseline.ChannelsK,
+		AlgorithmFactorA: req.Baseline.AlgorithmFactorA,
+		BetLimit:         req.Baseline.BetLimit,
+		FraudFactorF:     req.Baseline.FraudFactorF,
 	}
 
 	foundFeasible := false
@@ -74,17 +68,7 @@ func (o *Optimizer) optimizeRandomSearch(
 		l := randomFloatCandidate(o.rng, req.BetLimitCandidates)
 		f := randomFloatCandidate(o.rng, req.FraudCandidates)
 
-		simReq := domain.SimulationRequest{
-			ArrivalRateLambda: req.ArrivalRateLambda,
-			Mu:                req.Mu,
-			ChannelsK:         k,
-			AlgorithmFactorA:  a,
-			BetLimit:          l,
-			FraudFactorF:      f,
-			Simulations:       req.Simulations,
-		}
-
-		simResult, err := o.sim.Run(simReq)
+		simResult, err := o.runCandidate(req, k, a, l, f)
 		if err != nil {
 			return domain.OptimizationResult{}, err
 		}
@@ -95,7 +79,7 @@ func (o *Optimizer) optimizeRandomSearch(
 			continue
 		}
 
-		if !foundFeasible || metrics.RevenuePerUnitTime > bestMetrics.RevenuePerUnitTime {
+		if !foundFeasible || isBetter(metrics, bestMetrics) {
 			foundFeasible = true
 			bestMetrics = metrics
 			bestParams = domain.BestParams{
@@ -111,18 +95,137 @@ func (o *Optimizer) optimizeRandomSearch(
 		return domain.OptimizationResult{}, errors.New("no feasible parameter set found")
 	}
 
+	return buildOptimizationResult(
+		req,
+		req.Method,
+		req.Iterations,
+		bestParams,
+		baselineResult.Metrics,
+		bestMetrics,
+	), nil
+}
+
+func (o *Optimizer) optimizeGridSearch(
+	req domain.OptimizationRequest,
+) (domain.OptimizationResult, error) {
+	baselineResult, err := o.runBaseline(req)
+	if err != nil {
+		return domain.OptimizationResult{}, err
+	}
+
+	bestMetrics := baselineResult.Metrics
+	bestParams := domain.BestParams{
+		ChannelsK:        req.Baseline.ChannelsK,
+		AlgorithmFactorA: req.Baseline.AlgorithmFactorA,
+		BetLimit:         req.Baseline.BetLimit,
+		FraudFactorF:     req.Baseline.FraudFactorF,
+	}
+
+	foundFeasible := false
+	evaluatedCombinations := 0
+
+	for _, k := range req.ChannelCandidates {
+		for _, a := range req.AlgorithmCandidates {
+			for _, l := range req.BetLimitCandidates {
+				for _, f := range req.FraudCandidates {
+					evaluatedCombinations++
+
+					simResult, err := o.runCandidate(req, k, a, l, f)
+					if err != nil {
+						return domain.OptimizationResult{}, err
+					}
+
+					metrics := simResult.Metrics
+
+					if !isFeasible(metrics, req.MaxRho, req.MaxProcessingTime) {
+						continue
+					}
+
+					if !foundFeasible || isBetter(metrics, bestMetrics) {
+						foundFeasible = true
+						bestMetrics = metrics
+						bestParams = domain.BestParams{
+							ChannelsK:        k,
+							AlgorithmFactorA: a,
+							BetLimit:         l,
+							FraudFactorF:     f,
+						}
+					}
+				}
+			}
+		}
+	}
+
+	if !foundFeasible {
+		return domain.OptimizationResult{}, errors.New("no feasible parameter set found")
+	}
+
+	return buildOptimizationResult(
+		req,
+		req.Method,
+		evaluatedCombinations,
+		bestParams,
+		baselineResult.Metrics,
+		bestMetrics,
+	), nil
+}
+
+func (o *Optimizer) runBaseline(
+	req domain.OptimizationRequest,
+) (domain.SimulationResult, error) {
+	baselineReq := domain.SimulationRequest{
+		ArrivalRateLambda: req.ArrivalRateLambda,
+		Mu:                req.Mu,
+		ChannelsK:         req.Baseline.ChannelsK,
+		AlgorithmFactorA:  req.Baseline.AlgorithmFactorA,
+		BetLimit:          req.Baseline.BetLimit,
+		FraudFactorF:      req.Baseline.FraudFactorF,
+		Simulations:       req.Simulations,
+	}
+
+	return o.sim.Run(baselineReq)
+}
+
+func (o *Optimizer) runCandidate(
+	req domain.OptimizationRequest,
+	channelsK int,
+	algorithmFactorA float64,
+	betLimit float64,
+	fraudFactorF float64,
+) (domain.SimulationResult, error) {
+	simReq := domain.SimulationRequest{
+		ArrivalRateLambda: req.ArrivalRateLambda,
+		Mu:                req.Mu,
+		ChannelsK:         channelsK,
+		AlgorithmFactorA:  algorithmFactorA,
+		BetLimit:          betLimit,
+		FraudFactorF:      fraudFactorF,
+		Simulations:       req.Simulations,
+	}
+
+	return o.sim.Run(simReq)
+}
+
+func buildOptimizationResult(
+	req domain.OptimizationRequest,
+	method domain.OptimizationMethod,
+	iterations int,
+	bestParams domain.BestParams,
+	baselineMetrics domain.Metrics,
+	optimizedMetrics domain.Metrics,
+) domain.OptimizationResult {
 	return domain.OptimizationResult{
 		Request:    req,
-		Method:     req.Method,
-		Iterations: req.Iterations,
+		Method:     method,
+		Iterations: iterations,
 
 		BestParams:       bestParams,
-		BaselineMetrics:  baselineResult.Metrics,
-		OptimizedMetrics: bestMetrics,
+		BaselineMetrics:  baselineMetrics,
+		OptimizedMetrics: optimizedMetrics,
 
-		DeltaRevenue:    bestMetrics.RevenuePerUnitTime - baselineResult.Metrics.RevenuePerUnitTime,
-		DeltaProcessing: baselineResult.Metrics.AvgProcessingTime - bestMetrics.AvgProcessingTime,
-	}, nil
+		DeltaRevenue:    optimizedMetrics.RevenuePerUnitTime - baselineMetrics.RevenuePerUnitTime,
+		DeltaProcessing: baselineMetrics.AvgProcessingTime - optimizedMetrics.AvgProcessingTime,
+	}
 }
 
 func normalizeOptimizationRequest(req domain.OptimizationRequest) domain.OptimizationRequest {
@@ -135,6 +238,13 @@ func normalizeOptimizationRequest(req domain.OptimizationRequest) domain.Optimiz
 	}
 
 	return req
+}
+
+func isBetter(
+	candidate domain.Metrics,
+	currentBest domain.Metrics,
+) bool {
+	return candidate.RevenuePerUnitTime > currentBest.RevenuePerUnitTime
 }
 
 func isFeasible(
@@ -156,10 +266,6 @@ func isFeasible(
 func validateOptimizationRequest(req domain.OptimizationRequest) error {
 	if !req.Method.IsValid() {
 		return errors.New("invalid optimization method")
-	}
-
-	if req.Method != domain.OptimizationMethodRandom {
-		return errors.New("only random optimization method is currently implemented")
 	}
 
 	if req.Iterations <= 0 {
