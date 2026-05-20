@@ -13,6 +13,8 @@ type LoadScenario struct {
 	FraudFactorF      float64 `json:"fraud_factor"`
 	Simulations       int     `json:"simulations"`
 
+	Seed int64 `json:"seed"`
+
 	MaxRho            float64 `json:"max_rho"`
 	MaxProcessingTime float64 `json:"max_processing_time"`
 }

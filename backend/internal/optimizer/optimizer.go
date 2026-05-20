@@ -51,6 +51,10 @@ func (o *Optimizer) Optimize(
 ) (domain.OptimizationResult, error) {
 	normalizedReq := normalizeOptimizationRequest(req)
 
+	if normalizedReq.Seed != 0 {
+		o.rng = rand.New(rand.NewSource(normalizedReq.Seed))
+	}
+
 	if err := validateOptimizationRequest(normalizedReq); err != nil {
 		return domain.OptimizationResult{}, err
 	}
@@ -567,6 +571,7 @@ func (o *Optimizer) runBaseline(
 		BetLimit:          req.Baseline.BetLimit,
 		FraudFactorF:      req.Baseline.FraudFactorF,
 		Simulations:       req.Simulations,
+		Seed:              req.Seed,
 	}
 
 	return o.sim.Run(baselineReq)
@@ -584,6 +589,7 @@ func (o *Optimizer) runCandidate(
 		BetLimit:          c.BetLimit,
 		FraudFactorF:      c.FraudFactorF,
 		Simulations:       req.Simulations,
+		Seed:              req.Seed,
 	}
 
 	return o.sim.Run(simReq)

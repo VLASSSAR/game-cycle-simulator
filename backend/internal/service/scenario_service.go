@@ -25,6 +25,7 @@ func (s *ScenarioService) ListScenarios() []domain.LoadScenario {
 
 			MaxRho:            0.95,
 			MaxProcessingTime: 0.3,
+			Seed:              1001,
 		},
 		{
 			ID:          "medium_load",
@@ -41,6 +42,7 @@ func (s *ScenarioService) ListScenarios() []domain.LoadScenario {
 
 			MaxRho:            0.95,
 			MaxProcessingTime: 0.3,
+			Seed:              1001,
 		},
 		{
 			ID:          "high_load",
@@ -57,6 +59,7 @@ func (s *ScenarioService) ListScenarios() []domain.LoadScenario {
 
 			MaxRho:            0.95,
 			MaxProcessingTime: 0.35,
+			Seed:              1001,
 		},
 		{
 			ID:          "stress_load",
@@ -73,6 +76,7 @@ func (s *ScenarioService) ListScenarios() []domain.LoadScenario {
 
 			MaxRho:            0.98,
 			MaxProcessingTime: 0.5,
+			Seed:              1001,
 		},
 	}
 }

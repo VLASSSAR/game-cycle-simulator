@@ -8,6 +8,10 @@ type SimulationRequest struct {
 	BetLimit          float64 `json:"bet_limit"`
 	FraudFactorF      float64 `json:"fraud_factor"`
 	Simulations       int     `json:"simulations"`
+
+	// Seed используется для воспроизводимости вычислительных экспериментов.
+	// Если Seed = 0, используется случайное значение на основе текущего времени.
+	Seed int64 `json:"seed,omitempty"`
 }
 
 type BaselineParams struct {
@@ -24,6 +28,9 @@ type OptimizationRequest struct {
 	ArrivalRateLambda float64 `json:"arrival_rate_lambda"`
 	Mu                float64 `json:"mu"`
 	Simulations       int     `json:"simulations"`
+
+	// Seed используется для воспроизводимости оптимизационных экспериментов.
+	Seed int64 `json:"seed,omitempty"`
 
 	Baseline BaselineParams `json:"baseline"`
 

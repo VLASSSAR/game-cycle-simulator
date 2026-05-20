@@ -37,7 +37,15 @@ func (s *Simulator) Run(req domain.SimulationRequest) (domain.SimulationResult, 
 		return domain.SimulationResult{}, err
 	}
 
-	arrivals := s.arrivalGenerator.GenerateArrivals(req.ArrivalRateLambda, req.Simulations)
+	rng := newRNG(req.Seed)
+
+	arrivalGenerator := generator.NewArrivalGenerator(rng)
+	transitionModel := model.NewTransitionModel(rng)
+	timeModel := model.NewTimeModel(rng)
+	revenueModel := model.NewRevenueModel(rng)
+	fraudFeatureGenerator := antifraud.NewFeatureGenerator(rng)
+
+	arrivals := arrivalGenerator.GenerateArrivals(req.ArrivalRateLambda, req.Simulations)
 
 	// channelFreeTimes[i] = момент, когда i-й канал освободится.
 	channelFreeTimes := make([]float64, req.ChannelsK)
@@ -70,7 +78,7 @@ func (s *Simulator) Run(req domain.SimulationRequest) (domain.SimulationResult, 
 		startServiceTime := math.Max(arrivalTime, channelFreeTimes[channelIdx])
 		queueTime := startServiceTime - arrivalTime
 
-		operationProfile := s.fraudFeatureGenerator.Generate(baseFraudProbability())
+		operationProfile := fraudFeatureGenerator.Generate(baseFraudProbability())
 		fraudResult := fraudModel.Evaluate(operationProfile.Features, operationProfile.IsFraud)
 
 		fraudChecks++
@@ -102,13 +110,13 @@ func (s *Simulator) Run(req domain.SimulationRequest) (domain.SimulationResult, 
 			fraudResult.IsSuspicious,
 		)
 
-		path := s.transitionModel.SimulatePath(
+		path := transitionModel.SimulatePath(
 			baseRho,
 			req.AlgorithmFactorA,
 			operationFraudFactor,
 		)
 
-		processingTime := s.timeModel.TotalProcessingTime(
+		processingTime := timeModel.TotalProcessingTime(
 			path,
 			req.Mu,
 			req.AlgorithmFactorA,
@@ -120,7 +128,7 @@ func (s *Simulator) Run(req domain.SimulationRequest) (domain.SimulationResult, 
 
 		channelFreeTimes[channelIdx] = finishTime
 
-		revenue := s.revenueModel.RevenueForPath(
+		revenue := revenueModel.RevenueForPath(
 			path,
 			req.BetLimit,
 		)
@@ -332,4 +340,12 @@ func calculateOperationFraudFactor(
 
 func clampFloat(value float64, minValue float64, maxValue float64) float64 {
 	return math.Max(minValue, math.Min(maxValue, value))
+}
+
+func newRNG(seed int64) *rand.Rand {
+	if seed == 0 {
+		seed = time.Now().UnixNano()
+	}
+
+	return rand.New(rand.NewSource(seed))
 }
