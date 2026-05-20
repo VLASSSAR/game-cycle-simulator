@@ -54,6 +54,11 @@ export default function HomePage() {
             return;
         }
 
+        if (optimizationMethod === "adaptive") {
+            setError("Метод Adaptive Optimizer будет добавлен на следующем этапе.");
+            return;
+        }
+
         try {
             setIsOptimizing(true);
             setError(null);
@@ -144,7 +149,7 @@ export default function HomePage() {
                             >
                                 <option value="random">Random Search</option>
                                 <option value="grid">Grid Search</option>
-                                <option value="genetic">Genetic Algorithm — будет добавлен далее</option>
+                                <option value="genetic">Genetic Algorithm</option>
                                 <option value="adaptive">Adaptive Optimizer — будет добавлен далее</option>
                             </select>
                         </label>
