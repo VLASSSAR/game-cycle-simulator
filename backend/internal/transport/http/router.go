@@ -12,6 +12,7 @@ func NewRouter() http.Handler {
 	mux.HandleFunc("/api/health", handler.Health)
 	mux.HandleFunc("/api/simulate", handler.Simulate)
 	mux.HandleFunc("/api/optimize", handler.Optimize)
+	mux.HandleFunc("/api/optimize/compare", handler.CompareOptimizationMethods)
 
 	return enableCORS(mux)
 }

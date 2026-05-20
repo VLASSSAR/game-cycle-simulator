@@ -73,6 +73,86 @@ func (o *Optimizer) Optimize(
 	}
 }
 
+func (o *Optimizer) Compare(
+	req domain.OptimizationRequest,
+) (domain.OptimizationComparisonResult, error) {
+	normalizedReq := normalizeOptimizationRequest(req)
+
+	// Для сравнения методов поле Method в исходном запросе не является принципиальным,
+	// но валидация требует корректного значения.
+	if normalizedReq.Method == "" {
+		normalizedReq.Method = domain.OptimizationMethodRandom
+	}
+
+	if err := validateOptimizationRequest(normalizedReq); err != nil {
+		return domain.OptimizationComparisonResult{}, err
+	}
+
+	methods := []domain.OptimizationMethod{
+		domain.OptimizationMethodRandom,
+		domain.OptimizationMethodGrid,
+		domain.OptimizationMethodGenetic,
+		domain.OptimizationMethodAdaptive,
+	}
+
+	var baselineMetrics domain.Metrics
+	var results []domain.OptimizationComparisonItem
+
+	var bestMethod domain.OptimizationMethod
+	var bestRevenue float64
+	hasSuccessfulResult := false
+
+	for methodIndex, method := range methods {
+		methodReq := normalizedReq
+		methodReq.Method = method
+
+		optimizationResult, err := o.Optimize(methodReq)
+		if err != nil {
+			results = append(results, domain.OptimizationComparisonItem{
+				Method: method,
+				Error:  err.Error(),
+			})
+			continue
+		}
+
+		if methodIndex == 0 {
+			baselineMetrics = optimizationResult.BaselineMetrics
+		}
+
+		item := domain.OptimizationComparisonItem{
+			Method:     optimizationResult.Method,
+			Iterations: optimizationResult.Iterations,
+
+			BestParams:       optimizationResult.BestParams,
+			OptimizedMetrics: optimizationResult.OptimizedMetrics,
+
+			DeltaRevenue:    optimizationResult.DeltaRevenue,
+			DeltaProcessing: optimizationResult.DeltaProcessing,
+		}
+
+		results = append(results, item)
+
+		if !hasSuccessfulResult ||
+			optimizationResult.OptimizedMetrics.RevenuePerUnitTime > bestRevenue {
+			hasSuccessfulResult = true
+			bestRevenue = optimizationResult.OptimizedMetrics.RevenuePerUnitTime
+			bestMethod = optimizationResult.Method
+		}
+	}
+
+	if !hasSuccessfulResult {
+		return domain.OptimizationComparisonResult{}, errors.New("all optimization methods failed")
+	}
+
+	return domain.OptimizationComparisonResult{
+		Request: normalizedReq,
+
+		BaselineMetrics: baselineMetrics,
+		Results:         results,
+		BestMethod:      bestMethod,
+	}, nil
+}
+
 func (o *Optimizer) optimizeRandomSearch(
 	req domain.OptimizationRequest,
 ) (domain.OptimizationResult, error) {

@@ -20,3 +20,9 @@ func (s *OptimizationService) RunOptimization(
 ) (domain.OptimizationResult, error) {
 	return s.opt.Optimize(req)
 }
+
+func (s *OptimizationService) CompareOptimizationMethods(
+	req domain.OptimizationRequest,
+) (domain.OptimizationComparisonResult, error) {
+	return s.opt.Compare(req)
+}

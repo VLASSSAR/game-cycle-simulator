@@ -72,3 +72,24 @@ func (h *Handler) Optimize(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, result)
 }
+
+func (h *Handler) CompareOptimizationMethods(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	var req domain.OptimizationRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	result, err := h.optimizationService.CompareOptimizationMethods(req)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, result)
+}
