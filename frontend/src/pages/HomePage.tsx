@@ -27,6 +27,7 @@ const defaultSimulationRequest: SimulationRequest = {
     bet_limit: 100,
     fraud_factor: 0.2,
     simulations: 10000,
+    seed: 2001,
 };
 
 export default function HomePage() {
@@ -96,6 +97,7 @@ export default function HomePage() {
             bet_limit: scenario.bet_limit,
             fraud_factor: scenario.fraud_factor,
             simulations: scenario.simulations,
+            seed: scenario.seed,
         });
 
         setMaxRho(scenario.max_rho);
@@ -372,6 +374,7 @@ function buildOptimizationPayload(
         arrival_rate_lambda: request.arrival_rate_lambda,
         mu: request.mu,
         simulations: request.simulations,
+        seed: request.seed,
 
         baseline: {
             channels_k: request.channels_k,

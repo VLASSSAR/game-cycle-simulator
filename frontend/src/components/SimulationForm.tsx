@@ -117,6 +117,23 @@ export default function SimulationForm({
                 />
             </label>
 
+            <label style={styles.label}>
+                Seed (для воспроизводимости)
+                <input
+                    type="number"
+                    step="1"
+                    name="seed"
+                    value={value.seed}
+                    onChange={handleChange}
+                    style={styles.input}
+                />
+            </label>
+
+            <p style={styles.hint}>
+                Если seed = 0, используется случайная генерация. Если seed фиксирован,
+                одинаковые параметры дают воспроизводимый эксперимент.
+            </p>
+
             <button type="submit" disabled={isLoading} style={styles.button}>
                 {isLoading ? "Выполняется..." : "Запустить симуляцию"}
             </button>
@@ -153,6 +170,12 @@ const styles: Record<string, React.CSSProperties> = {
         border: "1px solid #ccc",
         color: "#000",
         background: "#fff",
+    },
+    hint: {
+        margin: 0,
+        color: "#333",
+        fontSize: "13px",
+        lineHeight: 1.5,
     },
     button: {
         padding: "12px",

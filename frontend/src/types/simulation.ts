@@ -6,6 +6,7 @@ export interface SimulationRequest {
     bet_limit: number;
     fraud_factor: number;
     simulations: number;
+    seed: number;
 }
 
 export interface LoadScenario {
@@ -20,6 +21,7 @@ export interface LoadScenario {
     bet_limit: number;
     fraud_factor: number;
     simulations: number;
+    seed: number;
 
     max_rho: number;
     max_processing_time: number;
@@ -74,6 +76,7 @@ export interface OptimizationRequest {
     arrival_rate_lambda: number;
     mu: number;
     simulations: number;
+    seed: number;
 
     baseline: BaselineParams;
 
