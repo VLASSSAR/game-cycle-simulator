@@ -24,7 +24,7 @@ export default function OptimizationPanel({ result }: OptimizationPanelProps) {
                     <li>k (число каналов): {best_params.channels_k}</li>
                     <li>a (алгоритмический коэффициент): {best_params.algorithm_factor_a}</li>
                     <li>L (лимит ставки): {best_params.bet_limit}</li>
-                    <li>F (антифрод-параметр): {best_params.fraud_factor}</li>
+                    <li>F (anti-fraud параметр): {best_params.fraud_factor}</li>
                 </ul>
             </div>
 
@@ -87,6 +87,30 @@ export default function OptimizationPanel({ result }: OptimizationPanelProps) {
                         <td style={styles.td}>Доход за единицу времени</td>
                         <td style={styles.td}>{baseline_metrics.revenue_per_unit_time.toFixed(4)}</td>
                         <td style={styles.td}>{optimized_metrics.revenue_per_unit_time.toFixed(4)}</td>
+                    </tr>
+
+                    <tr>
+                        <td style={styles.td}>Средний fraud-score</td>
+                        <td style={styles.td}>{baseline_metrics.avg_fraud_score.toFixed(4)}</td>
+                        <td style={styles.td}>{optimized_metrics.avg_fraud_score.toFixed(4)}</td>
+                    </tr>
+
+                    <tr>
+                        <td style={styles.td}>Detection Rate</td>
+                        <td style={styles.td}>{baseline_metrics.fraud_detection_rate.toFixed(4)}</td>
+                        <td style={styles.td}>{optimized_metrics.fraud_detection_rate.toFixed(4)}</td>
+                    </tr>
+
+                    <tr>
+                        <td style={styles.td}>False Positive Rate</td>
+                        <td style={styles.td}>{baseline_metrics.false_positive_rate.toFixed(4)}</td>
+                        <td style={styles.td}>{optimized_metrics.false_positive_rate.toFixed(4)}</td>
+                    </tr>
+
+                    <tr>
+                        <td style={styles.td}>False Negative Rate</td>
+                        <td style={styles.td}>{baseline_metrics.false_negative_rate.toFixed(4)}</td>
+                        <td style={styles.td}>{optimized_metrics.false_negative_rate.toFixed(4)}</td>
                     </tr>
                     </tbody>
                 </table>
