@@ -13,10 +13,38 @@ type BestParams struct {
 }
 
 type OptimizationResult struct {
-	Request          OptimizationRequest `json:"request"`
-	BestParams       BestParams          `json:"best_params"`
-	BaselineMetrics  Metrics             `json:"baseline_metrics"`
-	OptimizedMetrics Metrics             `json:"optimized_metrics"`
-	DeltaRevenue     float64             `json:"delta_revenue"`
-	DeltaProcessing  float64             `json:"delta_processing"`
+	Request OptimizationRequest `json:"request"`
+
+	Method     OptimizationMethod `json:"method"`
+	Iterations int                `json:"iterations"`
+
+	BestParams       BestParams `json:"best_params"`
+	BaselineMetrics  Metrics    `json:"baseline_metrics"`
+	OptimizedMetrics Metrics    `json:"optimized_metrics"`
+
+	DeltaRevenue    float64 `json:"delta_revenue"`
+	DeltaProcessing float64 `json:"delta_processing"`
+}
+
+type OptimizationComparisonItem struct {
+	Method     OptimizationMethod `json:"method"`
+	Iterations int                `json:"iterations"`
+
+	BestParams       BestParams `json:"best_params"`
+	OptimizedMetrics Metrics    `json:"optimized_metrics"`
+
+	DeltaRevenue    float64 `json:"delta_revenue"`
+	DeltaProcessing float64 `json:"delta_processing"`
+
+	Error string `json:"error,omitempty"`
+}
+
+type OptimizationComparisonResult struct {
+	Request OptimizationRequest `json:"request"`
+
+	BaselineMetrics Metrics `json:"baseline_metrics"`
+
+	Results []OptimizationComparisonItem `json:"results"`
+
+	BestMethod OptimizationMethod `json:"best_method"`
 }
