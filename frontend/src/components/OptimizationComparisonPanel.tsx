@@ -1,4 +1,5 @@
 import type { OptimizationComparisonResponse } from "../types/simulation";
+import OptimizationMethodsChart from "./OptimizationMethodsChart";
 import {
     exportOptimizationComparisonCsv,
     exportOptimizationComparisonJson,
@@ -125,6 +126,8 @@ export default function OptimizationComparisonPanel({
                     </tbody>
                 </table>
             </div>
+
+            <OptimizationMethodsChart result={result} />
 
             <div style={styles.section}>
                 <h3 style={styles.subtitle}>Интерпретация</h3>
