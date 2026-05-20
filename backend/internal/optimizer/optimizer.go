@@ -3,6 +3,7 @@ package optimizer
 import (
 	"errors"
 	"math/rand"
+	"sort"
 	"time"
 
 	"game-cycle-simulator/internal/domain"
@@ -14,6 +15,20 @@ type Optimizer struct {
 	rng *rand.Rand
 }
 
+type candidate struct {
+	ChannelsK        int
+	AlgorithmFactorA float64
+	BetLimit         float64
+	FraudFactorF     float64
+}
+
+type evaluatedCandidate struct {
+	Candidate candidate
+	Metrics   domain.Metrics
+	Fitness   float64
+	Feasible  bool
+}
+
 func NewOptimizer() *Optimizer {
 	return &Optimizer{
 		sim: simulator.NewSimulator(),
@@ -21,7 +36,12 @@ func NewOptimizer() *Optimizer {
 	}
 }
 
-const defaultRandomSearchIterations = 100
+const (
+	defaultRandomSearchIterations = 100
+	minGeneticPopulationSize      = 4
+	maxGeneticPopulationSize      = 20
+	geneticMutationProbability    = 0.2
+)
 
 func (o *Optimizer) Optimize(
 	req domain.OptimizationRequest,
@@ -38,6 +58,9 @@ func (o *Optimizer) Optimize(
 
 	case domain.OptimizationMethodGrid:
 		return o.optimizeGridSearch(normalizedReq)
+
+	case domain.OptimizationMethodGenetic:
+		return o.optimizeGenetic(normalizedReq)
 
 	default:
 		return domain.OptimizationResult{}, errors.New("optimization method is not implemented yet")
@@ -60,15 +83,12 @@ func (o *Optimizer) optimizeRandomSearch(
 		FraudFactorF:     req.Baseline.FraudFactorF,
 	}
 
-	foundFeasible := false
+	foundFeasible := isFeasible(baselineResult.Metrics, req.MaxRho, req.MaxProcessingTime)
 
 	for i := 0; i < req.Iterations; i++ {
-		k := randomIntCandidate(o.rng, req.ChannelCandidates)
-		a := randomFloatCandidate(o.rng, req.AlgorithmCandidates)
-		l := randomFloatCandidate(o.rng, req.BetLimitCandidates)
-		f := randomFloatCandidate(o.rng, req.FraudCandidates)
+		c := o.randomCandidate(req)
 
-		simResult, err := o.runCandidate(req, k, a, l, f)
+		simResult, err := o.runCandidate(req, c)
 		if err != nil {
 			return domain.OptimizationResult{}, err
 		}
@@ -82,12 +102,7 @@ func (o *Optimizer) optimizeRandomSearch(
 		if !foundFeasible || isBetter(metrics, bestMetrics) {
 			foundFeasible = true
 			bestMetrics = metrics
-			bestParams = domain.BestParams{
-				ChannelsK:        k,
-				AlgorithmFactorA: a,
-				BetLimit:         l,
-				FraudFactorF:     f,
-			}
+			bestParams = bestParamsFromCandidate(c)
 		}
 	}
 
@@ -121,7 +136,7 @@ func (o *Optimizer) optimizeGridSearch(
 		FraudFactorF:     req.Baseline.FraudFactorF,
 	}
 
-	foundFeasible := false
+	foundFeasible := isFeasible(baselineResult.Metrics, req.MaxRho, req.MaxProcessingTime)
 	evaluatedCombinations := 0
 
 	for _, k := range req.ChannelCandidates {
@@ -130,7 +145,14 @@ func (o *Optimizer) optimizeGridSearch(
 				for _, f := range req.FraudCandidates {
 					evaluatedCombinations++
 
-					simResult, err := o.runCandidate(req, k, a, l, f)
+					c := candidate{
+						ChannelsK:        k,
+						AlgorithmFactorA: a,
+						BetLimit:         l,
+						FraudFactorF:     f,
+					}
+
+					simResult, err := o.runCandidate(req, c)
 					if err != nil {
 						return domain.OptimizationResult{}, err
 					}
@@ -144,12 +166,7 @@ func (o *Optimizer) optimizeGridSearch(
 					if !foundFeasible || isBetter(metrics, bestMetrics) {
 						foundFeasible = true
 						bestMetrics = metrics
-						bestParams = domain.BestParams{
-							ChannelsK:        k,
-							AlgorithmFactorA: a,
-							BetLimit:         l,
-							FraudFactorF:     f,
-						}
+						bestParams = bestParamsFromCandidate(c)
 					}
 				}
 			}
@@ -170,6 +187,193 @@ func (o *Optimizer) optimizeGridSearch(
 	), nil
 }
 
+func (o *Optimizer) optimizeGenetic(
+	req domain.OptimizationRequest,
+) (domain.OptimizationResult, error) {
+	baselineResult, err := o.runBaseline(req)
+	if err != nil {
+		return domain.OptimizationResult{}, err
+	}
+
+	bestMetrics := baselineResult.Metrics
+	bestParams := domain.BestParams{
+		ChannelsK:        req.Baseline.ChannelsK,
+		AlgorithmFactorA: req.Baseline.AlgorithmFactorA,
+		BetLimit:         req.Baseline.BetLimit,
+		FraudFactorF:     req.Baseline.FraudFactorF,
+	}
+
+	foundFeasible := isFeasible(baselineResult.Metrics, req.MaxRho, req.MaxProcessingTime)
+
+	populationSize := geneticPopulationSize(req.Iterations)
+	population := make([]candidate, 0, populationSize)
+
+	for i := 0; i < populationSize; i++ {
+		population = append(population, o.randomCandidate(req))
+	}
+
+	evaluatedTotal := 0
+
+	for evaluatedTotal < req.Iterations {
+		evaluatedPopulation := make([]evaluatedCandidate, 0, len(population))
+
+		for _, c := range population {
+			if evaluatedTotal >= req.Iterations {
+				break
+			}
+
+			simResult, err := o.runCandidate(req, c)
+			if err != nil {
+				return domain.OptimizationResult{}, err
+			}
+
+			evaluatedTotal++
+
+			metrics := simResult.Metrics
+			feasible := isFeasible(metrics, req.MaxRho, req.MaxProcessingTime)
+			fitness := fitnessValue(metrics, feasible)
+
+			evaluated := evaluatedCandidate{
+				Candidate: c,
+				Metrics:   metrics,
+				Fitness:   fitness,
+				Feasible:  feasible,
+			}
+
+			evaluatedPopulation = append(evaluatedPopulation, evaluated)
+
+			if feasible && (!foundFeasible || isBetter(metrics, bestMetrics)) {
+				foundFeasible = true
+				bestMetrics = metrics
+				bestParams = bestParamsFromCandidate(c)
+			}
+		}
+
+		if len(evaluatedPopulation) == 0 {
+			break
+		}
+
+		sort.Slice(evaluatedPopulation, func(i, j int) bool {
+			return evaluatedPopulation[i].Fitness > evaluatedPopulation[j].Fitness
+		})
+
+		population = o.nextGeneration(req, evaluatedPopulation, populationSize)
+	}
+
+	if !foundFeasible {
+		return domain.OptimizationResult{}, errors.New("no feasible parameter set found")
+	}
+
+	return buildOptimizationResult(
+		req,
+		req.Method,
+		evaluatedTotal,
+		bestParams,
+		baselineResult.Metrics,
+		bestMetrics,
+	), nil
+}
+
+func (o *Optimizer) nextGeneration(
+	req domain.OptimizationRequest,
+	evaluatedPopulation []evaluatedCandidate,
+	populationSize int,
+) []candidate {
+	next := make([]candidate, 0, populationSize)
+
+	eliteCount := minInt(2, len(evaluatedPopulation))
+	for i := 0; i < eliteCount; i++ {
+		next = append(next, evaluatedPopulation[i].Candidate)
+	}
+
+	for len(next) < populationSize {
+		parentA := o.selectParent(evaluatedPopulation)
+		parentB := o.selectParent(evaluatedPopulation)
+
+		child := o.crossover(parentA.Candidate, parentB.Candidate)
+		child = o.mutate(req, child)
+
+		next = append(next, child)
+	}
+
+	return next
+}
+
+func (o *Optimizer) selectParent(
+	evaluatedPopulation []evaluatedCandidate,
+) evaluatedCandidate {
+	best := evaluatedPopulation[o.rng.Intn(len(evaluatedPopulation))]
+
+	tournamentSize := minInt(3, len(evaluatedPopulation))
+
+	for i := 1; i < tournamentSize; i++ {
+		candidateIndex := o.rng.Intn(len(evaluatedPopulation))
+		current := evaluatedPopulation[candidateIndex]
+
+		if current.Fitness > best.Fitness {
+			best = current
+		}
+	}
+
+	return best
+}
+
+func (o *Optimizer) crossover(
+	parentA candidate,
+	parentB candidate,
+) candidate {
+	child := candidate{}
+
+	if o.rng.Float64() < 0.5 {
+		child.ChannelsK = parentA.ChannelsK
+	} else {
+		child.ChannelsK = parentB.ChannelsK
+	}
+
+	if o.rng.Float64() < 0.5 {
+		child.AlgorithmFactorA = parentA.AlgorithmFactorA
+	} else {
+		child.AlgorithmFactorA = parentB.AlgorithmFactorA
+	}
+
+	if o.rng.Float64() < 0.5 {
+		child.BetLimit = parentA.BetLimit
+	} else {
+		child.BetLimit = parentB.BetLimit
+	}
+
+	if o.rng.Float64() < 0.5 {
+		child.FraudFactorF = parentA.FraudFactorF
+	} else {
+		child.FraudFactorF = parentB.FraudFactorF
+	}
+
+	return child
+}
+
+func (o *Optimizer) mutate(
+	req domain.OptimizationRequest,
+	c candidate,
+) candidate {
+	if o.rng.Float64() < geneticMutationProbability {
+		c.ChannelsK = randomIntCandidate(o.rng, req.ChannelCandidates)
+	}
+
+	if o.rng.Float64() < geneticMutationProbability {
+		c.AlgorithmFactorA = randomFloatCandidate(o.rng, req.AlgorithmCandidates)
+	}
+
+	if o.rng.Float64() < geneticMutationProbability {
+		c.BetLimit = randomFloatCandidate(o.rng, req.BetLimitCandidates)
+	}
+
+	if o.rng.Float64() < geneticMutationProbability {
+		c.FraudFactorF = randomFloatCandidate(o.rng, req.FraudCandidates)
+	}
+
+	return c
+}
+
 func (o *Optimizer) runBaseline(
 	req domain.OptimizationRequest,
 ) (domain.SimulationResult, error) {
@@ -188,22 +392,30 @@ func (o *Optimizer) runBaseline(
 
 func (o *Optimizer) runCandidate(
 	req domain.OptimizationRequest,
-	channelsK int,
-	algorithmFactorA float64,
-	betLimit float64,
-	fraudFactorF float64,
+	c candidate,
 ) (domain.SimulationResult, error) {
 	simReq := domain.SimulationRequest{
 		ArrivalRateLambda: req.ArrivalRateLambda,
 		Mu:                req.Mu,
-		ChannelsK:         channelsK,
-		AlgorithmFactorA:  algorithmFactorA,
-		BetLimit:          betLimit,
-		FraudFactorF:      fraudFactorF,
+		ChannelsK:         c.ChannelsK,
+		AlgorithmFactorA:  c.AlgorithmFactorA,
+		BetLimit:          c.BetLimit,
+		FraudFactorF:      c.FraudFactorF,
 		Simulations:       req.Simulations,
 	}
 
 	return o.sim.Run(simReq)
+}
+
+func (o *Optimizer) randomCandidate(
+	req domain.OptimizationRequest,
+) candidate {
+	return candidate{
+		ChannelsK:        randomIntCandidate(o.rng, req.ChannelCandidates),
+		AlgorithmFactorA: randomFloatCandidate(o.rng, req.AlgorithmCandidates),
+		BetLimit:         randomFloatCandidate(o.rng, req.BetLimitCandidates),
+		FraudFactorF:     randomFloatCandidate(o.rng, req.FraudCandidates),
+	}
 }
 
 func buildOptimizationResult(
@@ -238,6 +450,17 @@ func normalizeOptimizationRequest(req domain.OptimizationRequest) domain.Optimiz
 	}
 
 	return req
+}
+
+func fitnessValue(
+	metrics domain.Metrics,
+	feasible bool,
+) float64 {
+	if !feasible {
+		return -1e18
+	}
+
+	return metrics.RevenuePerUnitTime
 }
 
 func isBetter(
@@ -341,10 +564,45 @@ func validateOptimizationRequest(req domain.OptimizationRequest) error {
 	return nil
 }
 
+func geneticPopulationSize(iterations int) int {
+	if iterations < minGeneticPopulationSize {
+		return minGeneticPopulationSize
+	}
+
+	proposed := iterations / 5
+
+	if proposed < minGeneticPopulationSize {
+		return minGeneticPopulationSize
+	}
+
+	if proposed > maxGeneticPopulationSize {
+		return maxGeneticPopulationSize
+	}
+
+	return proposed
+}
+
+func bestParamsFromCandidate(c candidate) domain.BestParams {
+	return domain.BestParams{
+		ChannelsK:        c.ChannelsK,
+		AlgorithmFactorA: c.AlgorithmFactorA,
+		BetLimit:         c.BetLimit,
+		FraudFactorF:     c.FraudFactorF,
+	}
+}
+
 func randomIntCandidate(rng *rand.Rand, candidates []int) int {
 	return candidates[rng.Intn(len(candidates))]
 }
 
 func randomFloatCandidate(rng *rand.Rand, candidates []float64) float64 {
 	return candidates[rng.Intn(len(candidates))]
+}
+
+func minInt(a int, b int) int {
+	if a < b {
+		return a
+	}
+
+	return b
 }
