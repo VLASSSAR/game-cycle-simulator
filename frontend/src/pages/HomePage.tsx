@@ -8,12 +8,16 @@ import type {
     SimulationResponse,
     OptimizationResponse,
     OptimizationRequest,
+    OptimizationMethod,
 } from "../types/simulation";
 
 export default function HomePage() {
     const [simulationResult, setSimulationResult] = useState<SimulationResponse | null>(null);
     const [optimizationResult, setOptimizationResult] = useState<OptimizationResponse | null>(null);
     const [lastSimulationRequest, setLastSimulationRequest] = useState<SimulationRequest | null>(null);
+
+    const [optimizationMethod, setOptimizationMethod] = useState<OptimizationMethod>("random");
+    const [optimizationIterations, setOptimizationIterations] = useState<number>(100);
 
     const [isSimulating, setIsSimulating] = useState(false);
     const [isOptimizing, setIsOptimizing] = useState(false);
@@ -45,11 +49,24 @@ export default function HomePage() {
             return;
         }
 
+        if (optimizationIterations <= 0) {
+            setError("Число итераций оптимизации должно быть больше 0.");
+            return;
+        }
+
+        if (optimizationMethod !== "random") {
+            setError("Пока реализован только метод Random Search. Остальные методы будут добавлены далее.");
+            return;
+        }
+
         try {
             setIsOptimizing(true);
             setError(null);
 
             const payload: OptimizationRequest = {
+                method: optimizationMethod,
+                iterations: optimizationIterations,
+
                 arrival_rate_lambda: lastSimulationRequest.arrival_rate_lambda,
                 mu: lastSimulationRequest.mu,
                 simulations: lastSimulationRequest.simulations,
@@ -118,6 +135,40 @@ export default function HomePage() {
                 <div style={styles.leftColumn}>
                     <SimulationForm onSubmit={handleSimulation} isLoading={isSimulating} />
 
+                    <div style={styles.optimizationSettings}>
+                        <h2 style={styles.settingsTitle}>Параметры оптимизации</h2>
+
+                        <label style={styles.label}>
+                            Метод оптимизации
+                            <select
+                                value={optimizationMethod}
+                                onChange={(event) =>
+                                    setOptimizationMethod(event.target.value as OptimizationMethod)
+                                }
+                                style={styles.input}
+                            >
+                                <option value="random">Random Search</option>
+                                <option value="grid">Grid Search — будет добавлен далее</option>
+                                <option value="genetic">Genetic Algorithm — будет добавлен далее</option>
+                                <option value="adaptive">Adaptive Optimizer — будет добавлен далее</option>
+                            </select>
+                        </label>
+
+                        <label style={styles.label}>
+                            Число итераций
+                            <input
+                                type="number"
+                                min="1"
+                                step="1"
+                                value={optimizationIterations}
+                                onChange={(event) =>
+                                    setOptimizationIterations(Number(event.target.value))
+                                }
+                                style={styles.input}
+                            />
+                        </label>
+                    </div>
+
                     <button
                         onClick={handleOptimization}
                         disabled={isOptimizing || !lastSimulationRequest}
@@ -132,7 +183,6 @@ export default function HomePage() {
 
                     {simulationResult && (
                         <div style={styles.block}>
-                            {/*<h2 style={styles.blockTitle}>Результаты симуляции</h2>*/}
                             <MetricsCard metrics={simulationResult.metrics} />
                         </div>
                     )}
@@ -187,9 +237,35 @@ const styles: Record<string, React.CSSProperties> = {
         flexDirection: "column",
         gap: "12px",
     },
-    blockTitle: {
-        margin: 0,
+    optimizationSettings: {
+        display: "flex",
+        flexDirection: "column",
+        gap: "12px",
+        padding: "20px",
+        border: "1px solid #ddd",
+        borderRadius: "12px",
+        maxWidth: "440px",
+        background: "#fff",
         color: "#000",
+    },
+    settingsTitle: {
+        color: "#000",
+        margin: 0,
+        marginBottom: "8px",
+    },
+    label: {
+        display: "flex",
+        flexDirection: "column",
+        gap: "6px",
+        fontWeight: 500,
+        color: "#000",
+    },
+    input: {
+        padding: "10px",
+        borderRadius: "8px",
+        border: "1px solid #ccc",
+        color: "#000",
+        background: "#fff",
     },
     optimizeButton: {
         padding: "12px 16px",

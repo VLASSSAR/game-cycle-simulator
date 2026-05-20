@@ -48,15 +48,23 @@ export interface BaselineParams {
     fraud_factor: number;
 }
 
+export type OptimizationMethod = "random" | "grid" | "genetic" | "adaptive";
+
 export interface OptimizationRequest {
+    method: OptimizationMethod;
+    iterations: number;
+
     arrival_rate_lambda: number;
     mu: number;
     simulations: number;
+
     baseline: BaselineParams;
+
     channel_candidates: number[];
     algorithm_candidates: number[];
     bet_limit_candidates: number[];
     fraud_candidates: number[];
+
     max_rho: number;
     max_processing_time: number;
 }
@@ -70,9 +78,14 @@ export interface BestParams {
 
 export interface OptimizationResponse {
     request: OptimizationRequest;
+
+    method: OptimizationMethod;
+    iterations: number;
+
     best_params: BestParams;
     baseline_metrics: Metrics;
     optimized_metrics: Metrics;
+
     delta_revenue: number;
     delta_processing: number;
 }

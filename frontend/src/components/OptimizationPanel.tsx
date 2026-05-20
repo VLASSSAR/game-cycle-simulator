@@ -8,6 +8,8 @@ interface OptimizationPanelProps {
 
 export default function OptimizationPanel({ result }: OptimizationPanelProps) {
     const {
+        method,
+        iterations,
         best_params,
         baseline_metrics,
         optimized_metrics,
@@ -18,6 +20,14 @@ export default function OptimizationPanel({ result }: OptimizationPanelProps) {
     return (
         <div style={styles.card}>
             <h2 style={styles.title}>Результаты оптимизации</h2>
+
+            <div style={styles.section}>
+                <h3 style={styles.subtitle}>Метод оптимизации</h3>
+                <ul style={styles.list}>
+                    <li>Метод: {method}</li>
+                    <li>Число итераций: {iterations}</li>
+                </ul>
+            </div>
 
             <div style={styles.section}>
                 <h3 style={styles.subtitle}>Лучшие параметры</h3>
