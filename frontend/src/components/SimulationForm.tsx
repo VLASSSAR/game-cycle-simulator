@@ -1,37 +1,30 @@
-import { useState } from "react";
 import type { SimulationRequest } from "../types/simulation";
 
 interface SimulationFormProps {
+    value: SimulationRequest;
+    onChange: (data: SimulationRequest) => void;
     onSubmit: (data: SimulationRequest) => Promise<void>;
     isLoading: boolean;
 }
 
 export default function SimulationForm({
+                                           value,
+                                           onChange,
                                            onSubmit,
                                            isLoading,
                                        }: SimulationFormProps) {
-    const [formData, setFormData] = useState<SimulationRequest>({
-        arrival_rate_lambda: 8,
-        mu: 5,
-        channels_k: 3,
-        algorithm_factor_a: 1,
-        bet_limit: 100,
-        fraud_factor: 0.2,
-        simulations: 10000,
-    });
-
     function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
-        const { name, value } = e.target;
+        const { name, value: inputValue } = e.target;
 
-        setFormData((prev) => ({
-            ...prev,
-            [name]: Number(value),
-        }));
+        onChange({
+            ...value,
+            [name]: Number(inputValue),
+        });
     }
 
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
-        await onSubmit(formData);
+        await onSubmit(value);
     }
 
     return (
@@ -44,7 +37,7 @@ export default function SimulationForm({
                     type="number"
                     step="0.1"
                     name="arrival_rate_lambda"
-                    value={formData.arrival_rate_lambda}
+                    value={value.arrival_rate_lambda}
                     onChange={handleChange}
                     style={styles.input}
                 />
@@ -56,7 +49,7 @@ export default function SimulationForm({
                     type="number"
                     step="0.1"
                     name="mu"
-                    value={formData.mu}
+                    value={value.mu}
                     onChange={handleChange}
                     style={styles.input}
                 />
@@ -68,7 +61,7 @@ export default function SimulationForm({
                     type="number"
                     step="1"
                     name="channels_k"
-                    value={formData.channels_k}
+                    value={value.channels_k}
                     onChange={handleChange}
                     style={styles.input}
                 />
@@ -80,7 +73,7 @@ export default function SimulationForm({
                     type="number"
                     step="0.1"
                     name="algorithm_factor_a"
-                    value={formData.algorithm_factor_a}
+                    value={value.algorithm_factor_a}
                     onChange={handleChange}
                     style={styles.input}
                 />
@@ -92,21 +85,21 @@ export default function SimulationForm({
                     type="number"
                     step="1"
                     name="bet_limit"
-                    value={formData.bet_limit}
+                    value={value.bet_limit}
                     onChange={handleChange}
                     style={styles.input}
                 />
             </label>
 
             <label style={styles.label}>
-                F (антифрод-параметр)
+                F (anti-fraud параметр)
                 <input
                     type="number"
                     step="0.01"
                     min="0"
                     max="1"
                     name="fraud_factor"
-                    value={formData.fraud_factor}
+                    value={value.fraud_factor}
                     onChange={handleChange}
                     style={styles.input}
                 />
@@ -118,7 +111,7 @@ export default function SimulationForm({
                     type="number"
                     step="1"
                     name="simulations"
-                    value={formData.simulations}
+                    value={value.simulations}
                     onChange={handleChange}
                     style={styles.input}
                 />

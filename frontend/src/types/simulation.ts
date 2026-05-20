@@ -8,6 +8,23 @@ export interface SimulationRequest {
     simulations: number;
 }
 
+export interface LoadScenario {
+    id: string;
+    name: string;
+    description: string;
+
+    arrival_rate_lambda: number;
+    mu: number;
+    channels_k: number;
+    algorithm_factor_a: number;
+    bet_limit: number;
+    fraud_factor: number;
+    simulations: number;
+
+    max_rho: number;
+    max_processing_time: number;
+}
+
 export interface Metrics {
     total_bets: number;
     successful_bets: number;

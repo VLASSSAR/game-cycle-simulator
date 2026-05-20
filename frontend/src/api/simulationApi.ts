@@ -1,4 +1,5 @@
 import type {
+    LoadScenario,
     SimulationRequest,
     SimulationResponse,
     OptimizationRequest,
@@ -6,7 +7,20 @@ import type {
     OptimizationComparisonResponse,
 } from "../types/simulation";
 
-const API_BASE_URL = "http://localhost:8080";
+const API_BASE_URL = "https://game-cycle-simulator.onrender.com";
+
+export async function fetchScenarios(): Promise<LoadScenario[]> {
+    const response = await fetch(`${API_BASE_URL}/api/scenarios`, {
+        method: "GET",
+    });
+
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || "Scenarios request failed");
+    }
+
+    return response.json();
+}
 
 export async function runSimulation(
     payload: SimulationRequest
